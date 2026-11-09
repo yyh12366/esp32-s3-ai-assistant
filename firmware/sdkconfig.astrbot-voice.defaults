@@ -1,0 +1,78 @@
+# --- 目标芯片 ---
+CONFIG_IDF_TARGET="esp32c3"
+# 注:ESP32-C3 无 PSRAM,故不设 CONFIG_SPIRAM。
+
+# --- Flash ---
+# FoloToy AI Passport 当前产品/固件基线使用 8MB Flash。
+CONFIG_ESPTOOLPY_FLASHSIZE_8MB=y
+# 固定 8MB 镜像头，关闭 detect，便于 idf.py merge-bin。
+CONFIG_ESPTOOLPY_HEADER_FLASHSIZE_UPDATE=n
+# 默认模板只保留 NVS、PHY data 和占用剩余空间的 factory app；用户可按需修改。
+CONFIG_PARTITION_TABLE_CUSTOM=y
+CONFIG_PARTITION_TABLE_CUSTOM_FILENAME="partitions.csv"
+CONFIG_PARTITION_TABLE_FILENAME="partitions.csv"
+
+# --- 控制台:USB-Serial-JTAG(C3 原生 USB,GPIO18/19)---
+# 不用 UART0:其默认 TX=GPIO21 与本板背光引脚冲突。
+CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG=y
+CONFIG_ESP_CONSOLE_SECONDARY_NONE=y
+
+# --- LVGL ---
+CONFIG_LV_COLOR_DEPTH_16=y
+# 20 ms display refresh period targets up to 50 FPS when rendering and SPI
+# transfer complete within the same budget.
+CONFIG_LV_DEF_REFR_PERIOD=20
+CONFIG_LV_FONT_MONTSERRAT_14=y
+CONFIG_LV_FONT_MONTSERRAT_20=y
+# LVGL 内置 malloc 池大小(KB)。它是独立静态区、不与系统堆共享,配大了会白白占用 RAM。
+# 对讲界面的回复区最多 2KB 中文文字 + 设置页列表,实测需要比 demo 的 24KB 多一些。
+# LVGL 用系统堆而不是 .bss 里固定的 32KB 池：只占实际用到的部分，
+# 合并固件的监测模式不初始化 LVGL，这 32KB 就整块留给堆。
+CONFIG_LV_USE_CLIB_MALLOC=y
+# 中文文字:UTF-8 解码 + 缺字显示占位框(见 docs/development/engineering/lvgl-chinese-fonts.md)
+CONFIG_LV_TXT_ENC_UTF8=y
+CONFIG_LV_USE_FONT_PLACEHOLDER=y
+
+# --- 系统 ---
+CONFIG_FREERTOS_HZ=1000
+
+# --- Bluetooth LE / NimBLE ---
+# ESP32-C3 仅支持 BLE；示例只启用单连接 peripheral 所需的最小 host 配置。
+CONFIG_BT_ENABLED=y
+CONFIG_BT_NIMBLE_ENABLED=y
+# 蓝牙只在配网时启用(BLUFI),配网结束释放 NimBLE。
+CONFIG_BT_NIMBLE_BLUFI_ENABLE=y
+CONFIG_BT_NIMBLE_ROLE_CENTRAL=n
+CONFIG_BT_NIMBLE_ROLE_PERIPHERAL=y
+CONFIG_BT_NIMBLE_ROLE_BROADCASTER=y
+CONFIG_BT_NIMBLE_ROLE_OBSERVER=n
+CONFIG_BT_NIMBLE_MAX_CONNECTIONS=1
+# 单手机配网只保留广播/连接两个活动槽和少量 ACL 缓冲，为 DH 运算留出内部堆。
+CONFIG_BT_CTRL_BLE_MAX_ACT=2
+CONFIG_BT_NIMBLE_MSYS_2_BLOCK_COUNT=8
+CONFIG_BT_NIMBLE_TRANSPORT_ACL_FROM_LL_COUNT=8
+CONFIG_BT_NIMBLE_HOST_BASED_PRIVACY=n
+CONFIG_BT_NIMBLE_NVS_PERSIST=n
+
+# BLUFI 官方安全协商使用 DHM + AES + MD5(参考 demo/blufi-provisioning)。
+CONFIG_MBEDTLS_HARDWARE_MPI=n
+CONFIG_MBEDTLS_DHM_C=y
+
+# --- 内存（无 PSRAM：Wi-Fi + 配网时的 BLE + LVGL + 音频要同时放进约 320KB 内部 RAM）---
+# Wi-Fi 收发热路径不放 IRAM，换回约 20KB+ 可用堆；对讲码率很低（256kbps），吞吐不受影响。
+CONFIG_ESP_WIFI_IRAM_OPT=n
+CONFIG_ESP_WIFI_RX_IRAM_OPT=n
+CONFIG_ESP_WIFI_STATIC_RX_BUFFER_NUM=6
+CONFIG_ESP_WIFI_RX_BA_WIN=4
+
+# --- 公网语音接收 ---
+# 16kHz/16bit PCM 需要 32000 B/s；默认 5760 字节窗口在 180ms RTT 下已无重传余量。
+# 使用 16 MSS 窗口及对应邮箱，并让发送端按 SACK 精确补发丢失片段。
+CONFIG_LWIP_TCP_WND_DEFAULT=23040
+CONFIG_LWIP_TCP_RECVMBOX_SIZE=18
+CONFIG_LWIP_TCP_SACK_OUT=y
+
+# --- OTA 固件升级（partitions.csv: otadata + ota_0/ota_1）---
+# 新固件先以 PENDING_VERIFY 启动；应用确认联网正常后才调用 esp_ota_mark_app_valid_cancel_rollback()，
+# 否则下次复位由 bootloader 回滚到上一版。
+CONFIG_BOOTLOADER_APP_ROLLBACK_ENABLE=y

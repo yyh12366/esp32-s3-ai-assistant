@@ -1,0 +1,26 @@
+[Unit]
+Description=astrbot-relay (FoloToy AI Passport <-> AstrBot voice relay)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=simple
+User=astrbot-relay
+Group=astrbot-relay
+WorkingDirectory=/opt/astrbot-relay
+ExecStart=/opt/astrbot-relay/.venv/bin/python -m relay -c /opt/astrbot-relay/config.yaml
+Restart=on-failure
+RestartSec=3
+Environment=PYTHONUNBUFFERED=1
+# ASTRBOT_API_KEY / GROQ_API_KEY / BREEZE_API_KEY, referenced as ${VAR} in config.yaml
+EnvironmentFile=-/etc/astrbot-relay.env
+
+# Hardening: the service only needs to write its session store under data/
+NoNewPrivileges=true
+ProtectSystem=strict
+ProtectHome=true
+PrivateTmp=true
+ReadWritePaths=/opt/astrbot-relay/data
+
+[Install]
+WantedBy=multi-user.target

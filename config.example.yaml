@@ -1,0 +1,73 @@
+# astrbot-relay 配置。复制为 config.yaml 后修改。
+# 字符串里的 ${VAR} 会替换成环境变量，密钥建议放在 /etc/astrbot-relay.env（systemd EnvironmentFile）。
+
+server:
+  host: 0.0.0.0
+  port: 8765
+  # 设备连接的路径，例如 ws://<ip>:8765/ws
+  path: /ws
+  # 可选：非空时设备必须在 URL 上带 ?token=<auth_token>
+  auth_token: ""
+
+audio:
+  sample_rate: 16000        # 设备协议固定 16kHz / 16bit / mono
+  frame_ms: 40              # 下发给设备的每个 PCM 帧时长
+  prebuffer_ms: 400         # 提前下发，匹配设备 640ms 缓冲及 320ms 播放门槛
+  max_listen_seconds: 30    # 单次录音上限，超过自动截断
+  downlink_codec: pcm_s16le # pcm_s16le 原始音频，或 ima_adpcm 协商压缩
+
+astrbot:
+  # la 上的 AstrBot，通过本机 SSH 隧道访问
+  base_url: http://127.0.0.1:6186
+  api_key: ${ASTRBOT_API_KEY}   # WebUI → 设置 → OpenAPI 创建，需要 chat scope（建议再加 config）
+  # 让设备使用一套单独的 AstrBot 配置文件（二选一，都留空则用默认路由）
+  # config_id 优先；config_name 必须唯一。可用列表：GET /api/v1/configs（需 config scope）
+  config_id: ""
+  config_name: ""
+  # username = username_prefix + device_id
+  username_prefix: ""
+  request_timeout: 120      # 单轮对话最长秒数
+  # 每台设备的 session_id 持久化位置（保证重启后仍有多轮上下文）
+  session_store: ./data/sessions.json
+
+asr:
+  provider: openai_compat
+  openai_compat:
+    # 当前使用 Groq Whisper；经 la 的 SSH SOCKS 隧道访问
+    base_url: https://api.groq.com/openai/v1
+    api_key: ${GROQ_API_KEY}
+    model: whisper-large-v3-turbo
+    language: zh
+    prompt: "请使用简体中文转写。"
+    simplified_chinese: true   # 将识别结果中的繁体字转为简体，避免设备字库缺字
+    proxy: ""
+    timeout: 30
+
+tts:
+  provider: breeze            # breeze | placeholder（占位提示音，调试用）
+  breeze:
+    # Breeze Blue 流式 TTS：/v1/text-to-speech/{voice_id}/stream?output_format=pcm（24kHz，中继转成 16kHz）
+    api_key: ${BREEZE_API_KEY}  # brz_...
+    voice_id: ${BREEZE_VOICE_ID}
+    language_code: zh
+    model_id: ""                # 留空自动；可选 breeze-tts-2 / breeze-tts-2-multilingual
+    instructions: ""            # 可选的默认表演指令，例如 "亲切、语速稍快"
+    timeout: 30
+  placeholder:
+    chars_per_second: 6
+
+text:
+  # 按句切分：短于 min_chars 的句子会与下一句合并；超过 max_chars 会在逗号等处强制切分
+  min_chars: 4
+  max_chars: 60
+
+media:
+  # 设备「小说」「音乐」页读取的 HTTP 服务（与上面的 WS 中继分开端口）。
+  host: 0.0.0.0
+  port: 8766
+  # 目录结构：<root>/books/*.txt 与 <root>/music/*.mp3
+  # 章节分页和 MP3→16kHz 单声道 PCM 转码都在中继上做，设备端不解码 MP3。
+  root: ./media
+
+logging:
+  level: INFO

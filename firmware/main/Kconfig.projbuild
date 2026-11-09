@@ -1,0 +1,37 @@
+menu "AstrBot Voice"
+
+    config AV_RELAY_URL_DEFAULT
+        string "Default astrbot-relay URL"
+        default ""
+        help
+            Used until a relay address is saved on the device through Settings or
+            Bluetooth provisioning. Leave blank to require device configuration.
+
+    config AV_LA_RELAY_URL
+        string "Optional remote relay URL"
+        default ""
+        help
+            Optional remote deployment profile. Keep deployment-specific hosts
+            and tokens in local sdkconfig settings, not in the public defaults.
+
+    config AV_LA_MEDIA_BASE
+        string "Optional remote media base URL"
+        default ""
+        help
+            Optional remote media endpoint. Configure it privately with the relay
+            URL when selecting the remote server profile.
+
+    config AV_VOLUME_DEFAULT
+        int "Default playback volume (%)"
+        range 10 100
+        default 70
+
+endmenu
+
+config AV_S3_AUDIO_ENABLE
+    bool "Enable the external ES8311 on the ESP32-S3 board"
+    depends on IDF_TARGET_ESP32S3
+    default n
+    help
+        Enable only after verifying the external module supply. When disabled,
+        the firmware does not drive the ES8311 I2S pins.
